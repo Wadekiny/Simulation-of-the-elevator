@@ -1,0 +1,467 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <STC12C5A60S2.h>
+   2          #include <math.h>
+   3          #include "delay.h"
+   4          #include "HCSR04.h"
+   5          #include "oled.h"
+   6          #include "uart.h"
+   7          #include "def.h"
+   8          
+   9          //Î»ÉùÃ÷
+  10          sbit led5 = P0^0;
+  11          sbit led4 = P0^2;
+  12          sbit led3 = P0^4;
+  13          sbit led2 = P0^6;
+  14          sbit led1 = P2^7;
+  15          
+  16          sbit key5 = P0^1;
+  17          sbit key4 = P0^3;
+  18          sbit key3 = P0^5;
+  19          sbit key2 = P0^7;
+  20          sbit key1 = P2^6;
+  21          
+  22          sbit warning = P2^4;
+  23          sbit warn_led = P2^5;
+  24          sbit buzzer = P2^0;
+  25          
+  26          
+  27          struct _Floor{          
+  28                  uchar push;                     //°´¼ü°´ÏÂ
+  29                  uchar direction;        //·½Ïò
+  30          }floors[6];
+  31          
+  32          
+  33          uchar now_floor = 1;    //µ±Ç°Â¥²ã
+  34          uchar next_floor;       //ÏÂÒ»Â¥²ã
+  35          float now_distance; //µ±Ç°ÀëµØ¾àÀë
+  36          uchar pushed_flag=FALSE;
+  37          
+  38          uchar counter = 0;              //50ms¼ÆÊýÆ÷
+  39          uchar stay_counter=0;   //Í£ÁôÊ±¼ä¼ÆÊýÆ÷
+  40          uchar ele_dir=1;
+  41          uchar temp;
+  42          uchar ele_state=0;
+  43          uchar get_message;
+  44          void FloorInit();
+  45          void T1Init();
+  46          void Init();
+  47          
+  48          void KeyScan();
+  49          void Dectect();
+  50          
+  51          void IsPushed();
+  52          void IsArrived();
+  53          
+  54          void FindNext();
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 2   
+
+  55          uchar CalNowFloor();
+  56          void CalZkb();
+  57          
+  58          void Send();
+  59          
+  60          void ShowWelcome();
+  61          void ShowFloor();
+  62          
+  63          
+  64          void main()
+  65          {
+  66   1              Init();
+  67   1              ShowWelcome();
+  68   1              while (1)
+  69   1              {
+  70   2                      Dectect();      //¼ì²â
+  71   2      
+  72   2                      FindNext();//ÕÒµ½ÏÂÒ»²ã
+  73   2                      now_distance = Distance();      //²â¾àº¯Êý
+  74   2                      now_floor = CalNowFloor();      //ÅÐ¶ÏÂ¥²ã
+  75   2      
+  76   2                      ShowFloor();
+  77   2                      OLED_ShowNum(0,6,now_distance,3,16);    //ÀëµØ¾àÀë
+  78   2                      OLED_ShowNum(100,6,next_floor,1,16);    //ÏÂÒ»Â¥²ã
+  79   2                      //ÃðµÆ
+  80   2                      switch(now_floor)
+  81   2                      {
+  82   3                              case 1: led1 = 0; break;
+  83   3                              case 2: led2 = 0; break;
+  84   3                              case 3: led3 = 0; break;
+  85   3                              case 4: led4 = 0; break;
+  86   3                              case 5: led5 = 0; break;
+  87   3                      }
+  88   2                      CalZkb();
+  89   2                      Send();
+  90   2              }
+  91   1              
+  92   1      }
+  93          
+  94          void FindNext()
+  95          {
+  96   1              IsPushed();             //ÊÇ·ñÓÐ°´¼ü°´ÏÂ
+  97   1              if (now_floor == 5)             //ÌØÊâÂ¥²ã¸üÐÂdir
+  98   1              {
+  99   2                      ele_dir = DOWN; 
+ 100   2              }
+ 101   1              else if (now_floor == 1)
+ 102   1              {
+ 103   2                      ele_dir = UP;
+ 104   2              }
+ 105   1              //ÅÐ¶ÏÏÂÒ»²ã
+ 106   1              if (pushed_flag == TRUE)
+ 107   1              {
+ 108   2                      temp = now_floor;
+ 109   2                      if (ele_dir == UP)
+ 110   2                      {
+ 111   3                              while (floors[++temp].push == FALSE)
+ 112   3                              {
+ 113   4                                      if (temp == 5)
+ 114   4                                      {
+ 115   5                                              ele_dir = DOWN;
+ 116   5                                              break;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 3   
+
+ 117   5                                      }
+ 118   4                              }
+ 119   3                      }
+ 120   2                      else if (ele_dir == DOWN)
+ 121   2                      {
+ 122   3                              while (floors[--temp].push == FALSE)
+ 123   3                              {
+ 124   4                                      if (temp == 1)
+ 125   4                                      {
+ 126   5                                              ele_dir = UP;
+ 127   5                                              break;
+ 128   5                                      }
+ 129   4                              }
+ 130   3                      }
+ 131   2                      next_floor = temp;
+ 132   2              }
+ 133   1              else
+ 134   1              {
+ 135   2                      next_floor = now_floor;
+ 136   2              }
+ 137   1      }
+ 138          
+ 139          void CalZkb()
+ 140          {
+ 141   1              
+ 142   1              if (now_floor == next_floor)
+ 143   1              {
+ 144   2                      if (floors[now_floor].push == TRUE)
+ 145   2                      {
+ 146   3                              buzzer = 0;
+ 147   3                              Delay100ms();
+ 148   3                              Delay100ms();
+ 149   3                              buzzer = 1;
+ 150   3                      }
+ 151   2                      floors[now_floor].push = FALSE;
+ 152   2                      ele_state = STOP;
+ 153   2                      SendChar(STATE);
+ 154   2                      SendChar(STOP);
+ 155   2              }
+ 156   1              else if (ele_dir == UP)
+ 157   1              {
+ 158   2                      SendChar(STATE);
+ 159   2                      SendChar(RUN);
+ 160   2                      SendChar(UP);
+ 161   2                      SendChar(0x8f);
+ 162   2              }
+ 163   1              else if (ele_dir == DOWN)
+ 164   1              {
+ 165   2                      SendChar(STATE);
+ 166   2                      SendChar(RUN);
+ 167   2                      SendChar(DOWN);
+ 168   2                      SendChar(0xdf);
+ 169   2              }
+ 170   1              
+ 171   1      }
+ 172          /*
+ 173          void t1timer() interrupt 3 //50ms
+ 174          {
+ 175                  TR1 = 0;
+ 176                  TH1 = 0x3C;
+ 177              TL1 = 0xB0;
+ 178          
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 4   
+
+ 179                  if (stay_flag)
+ 180                  {
+ 181                          counter++;
+ 182                  }
+ 183                  
+ 184                  if (counter == 19)      //Òç³ö20´Î ´ïµ½Ò»Ãë
+ 185                  {
+ 186                          counter = 0;    //ms¼ÆÊýÆ÷ÇåÁ
+ 187          
+ 188                          if (stay_flag == TRUE)  //Èç¹ûÕýÔÚÍ£Áô
+ 189                          {
+ 190                                  stay_counter++;         //Í£Áô¼ÆÊýÆ÷++
+ 191                                  if (stay_counter == STAY_TIME)  //µ½´ïÒªÍ£ÁôµÄÊ±¼ä
+ 192                                  {
+ 193                                          stay_counter = 0;       //Í£Áô¼ÆÊýÆ÷ÇåÁã
+ 194                                          stay_flag = FALSE;
+ 195                                  }
+ 196                          }
+ 197                  }
+ 198                  
+ 199                  TR1 = 1;
+ 200          }
+ 201          */
+ 202          ////////////////////////////////////////////////////////////////////////////
+ 203          uchar CalNowFloor()
+ 204          {
+ 205   1              if (now_distance<L1+1)
+ 206   1                      return 1;
+ 207   1              else if (now_distance<L2+1 && now_distance>L2-1)
+ 208   1                      return 2;
+ 209   1              else if (now_distance<L3+1 && now_distance>L3-1)
+ 210   1                      return 3;
+ 211   1              else if (now_distance<L4+1 && now_distance>L4-1)
+ 212   1                      return 4;
+ 213   1              else if (now_distance<L5+1 && now_distance>L5-1)
+ 214   1                      return 5;
+ 215   1              else
+ 216   1                      return now_floor;
+ 217   1      }
+ 218          
+ 219          void Dectect()  //¼ì²â
+ 220          {
+ 221   1              KeyScan();              //¼ì²â¼üÅÌ
+ 222   1              HC_Init();      //³¬Éù²¨Ä£¿é³õÊ¼»¯º¯Êý
+ 223   1              HC_Out();       //³¬Éù²¨½ÓÊÜº¯Êý
+ 224   1      }
+ 225          
+ 226          void Send()     //·¢ËÍ
+ 227          {/*
+ 228   1              SendChar(STATE);                
+ 229   1              SendChar(ele_state);
+ 230   1              */
+ 231   1              SendChar(NOW);          //Â¥²ã
+ 232   1              SendChar(now_floor);
+ 233   1              
+ 234   1              SendChar(NEXT);
+ 235   1              SendChar(next_floor);
+ 236   1              
+ 237   1              SendChar(DIR);          
+ 238   1              SendChar(ele_dir);
+ 239   1      }
+ 240          
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 5   
+
+ 241          void KeyScan()
+ 242          {
+ 243   1              if (!warning)
+ 244   1              {
+ 245   2                      Delay1ms();
+ 246   2                      if (!warning)
+ 247   2                      {
+ 248   3                              floors[0].push = TRUE;
+ 249   3                              //buzzer = 0;
+ 250   3                              warn_led = 1;
+ 251   3                              SendChar(WARNING);
+ 252   3                              SendChar(0);
+ 253   3                              while (!warning);
+ 254   3                      }
+ 255   2              }
+ 256   1              if (!key1)
+ 257   1              {
+ 258   2                      Delay1ms();
+ 259   2                      if (!key1  && now_floor!=1)
+ 260   2                      {
+ 261   3                              floors[1].push = TRUE;
+ 262   3                              floors[1].direction = UP;
+ 263   3                              led1 = 1;
+ 264   3                              while (!key1);
+ 265   3                      }
+ 266   2              }
+ 267   1              if (!key2)
+ 268   1              {
+ 269   2                      Delay1ms();
+ 270   2                      if (!key2 && now_floor!=2)
+ 271   2                      {
+ 272   3                              floors[2].push = TRUE;
+ 273   3                              if (now_floor > 2)
+ 274   3                                      floors[2].direction = DOWN;
+ 275   3                              else if (now_floor < 2)
+ 276   3                                      floors[2].direction = UP;
+ 277   3                              led2 = 1;
+ 278   3                              while (!key2);
+ 279   3                      }
+ 280   2              }
+ 281   1              if (!key3)
+ 282   1              {
+ 283   2                      Delay1ms();
+ 284   2                      if (!key3 && now_floor!=3)
+ 285   2                      {
+ 286   3                              floors[3].push = TRUE;
+ 287   3                              if (now_floor > 3)
+ 288   3                                      floors[3].direction = DOWN;
+ 289   3                              else if (now_floor < 3)
+ 290   3                                      floors[3].direction = UP;
+ 291   3                              led3 = 1;
+ 292   3                              while (!key3);
+ 293   3                      }
+ 294   2              }
+ 295   1              if (!key4)
+ 296   1              {
+ 297   2                      Delay1ms();
+ 298   2                      if (!key4 && now_floor!=4)
+ 299   2                      {
+ 300   3                              floors[4].push = TRUE;
+ 301   3                              if (now_floor > 4)
+ 302   3                                      floors[4].direction = DOWN;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 6   
+
+ 303   3                              else if (now_floor < 4)
+ 304   3                                      floors[4].direction = UP;
+ 305   3                              led4 = 1;
+ 306   3                              while (!key4);
+ 307   3                      }
+ 308   2              }
+ 309   1              if (!key5)
+ 310   1              {
+ 311   2      
+ 312   2                      Delay1ms();
+ 313   2                      if (!key5 && now_floor!=5)
+ 314   2                      {
+ 315   3                              floors[5].push = TRUE;
+ 316   3                              floors[5].direction = DOWN;
+ 317   3                              led5 = 1;
+ 318   3                              while (!key5);
+ 319   3                      }
+ 320   2              }
+ 321   1      }
+ 322          
+ 323          void uart_isr() interrupt 4     //½ÓÊÕ
+ 324          {
+ 325   1              if (RI)
+ 326   1              {
+ 327   2                      RI = 0;
+ 328   2                      get_message = SBUF;
+ 329   2                      if (get_message == 0xff)
+ 330   2                      {
+ 331   3                              warn_led = 0;
+ 332   3                              floors[0].push = FALSE;
+ 333   3                      }
+ 334   2                      floors[get_message%10].push = TRUE;
+ 335   2                      floors[get_message%10].direction = get_message/10;
+ 336   2              }
+ 337   1      }
+ 338          
+ 339          void Init()     //³õÊ¼»¯
+ 340          {
+ 341   1              led1 = 0;
+ 342   1              led2 = 0;
+ 343   1              led3 = 0;
+ 344   1              led4 = 0;
+ 345   1              led5 = 0;
+ 346   1              warn_led =0;
+ 347   1              buzzer = 1;
+ 348   1              FloorInit();
+ 349   1              UartInit();     
+ 350   1              OLED_Init();
+ 351   1              OLED_Clear();   
+ 352   1              //T1Init();             
+ 353   1      }
+ 354          /*
+ 355          void T1Init()//T1³õÊ¼»¯
+ 356          {
+ 357                  TMOD |= 0x10;
+ 358                  EA = 1;
+ 359                  ET1 = 1;
+ 360                  TH1 = 0x3C;
+ 361              TL1 = 0xB0;
+ 362                  TR1 = 1;
+ 363          }
+ 364          */
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 7   
+
+ 365          void FloorInit()//Â¥²ãÐÅÏ¢³õÊ¼»¯
+ 366          {
+ 367   1              unsigned char i;
+ 368   1              for (i=0; i<=5; i++)
+ 369   1              {
+ 370   2                      floors[i].push = FALSE;
+ 371   2                      floors[i].direction = DOWN;
+ 372   2              }
+ 373   1      }
+ 374          
+ 375          
+ 376          
+ 377          void ShowWelcome()
+ 378          {
+ 379   1              /*---------------
+ 380   1              | ?X????!       |  
+ 381   1              |               |
+ 382   1              | ??:n   ?/?    |       
+ 383   1              ---------------*/
+ 384   1              OLED_ShowCHinese(4,0,4);
+ 385   1              OLED_ShowChar(24,0,'X');
+ 386   1              OLED_ShowCHinese(37,0,5);
+ 387   1              OLED_ShowCHinese(55,0,6);
+ 388   1              OLED_ShowCHinese(73,0,7);
+ 389   1              OLED_ShowCHinese(91,0,8);
+ 390   1              OLED_ShowCHinese(109,0,9);
+ 391   1              
+ 392   1              OLED_ShowCHinese(5,4,10);
+ 393   1              OLED_ShowCHinese(23,4,11);
+ 394   1      }
+ 395          
+ 396          void ShowFloor()
+ 397          {
+ 398   1              OLED_ShowNum(50,4,now_floor,1,16);
+ 399   1                      if (ele_dir == UP)
+ 400   1                              OLED_ShowCHinese(100,4,12);     
+ 401   1                      else if (ele_dir == DOWN)
+ 402   1                              OLED_ShowCHinese(100,4,13);
+ 403   1      }
+ 404          
+ 405          void IsPushed()
+ 406          {
+ 407   1              uchar i;
+ 408   1              pushed_flag = FALSE;
+ 409   1              for (i=0; i<=5; i++)
+ 410   1              {
+ 411   2                      if (floors[i].push == TRUE)
+ 412   2                      {
+ 413   3                              pushed_flag = TRUE;
+ 414   3                              break;
+ 415   3                      }
+ 416   2              }
+ 417   1      }
+ 418          /*
+ 419          void IsArrived()        //ÊÇ·ñµ½´ïÂ¥²ã
+ 420                  {
+ 421                          if (floors[now_floor].push && floors[now_floor].direction==ele_dir)
+ 422                          {
+ 423                                  counter = 0;
+ 424                                  floors[now_floor].push = FALSE; //¸üÐÂfloor½á¹¹ÌåµÄpush
+ 425                                  ele_state = STOP;                               //×´Ì¬¸ü¸ÄÎªSTOP
+ 426                          //      buzzer = 0;                                             //·äÃùÆ÷¿ª
+C51 COMPILER V9.56.0.0   MAIN                                                              04/15/2018 18:08:24 PAGE 8   
+
+ 427                          }
+ 428                  }
+ 429          */
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1037    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     25    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

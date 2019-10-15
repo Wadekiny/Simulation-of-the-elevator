@@ -1,0 +1,7 @@
+".\Objects\main.obj",
+".\Objects\HCSR04.obj",
+".\Objects\uart.obj",
+".\Objects\delay.obj",
+".\Objects\oled.obj" 
+TO ".\Objects\院赛从机" 
+PRINT(".\Listings\院赛从机.m51") RAMSIZE(256) 

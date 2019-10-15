@@ -1,0 +1,127 @@
+C51 COMPILER V9.56.0.0   HCSR04                                                            04/15/2018 18:08:24 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE HCSR04
+OBJECT MODULE PLACED IN .\Objects\HCSR04.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE HCSR04.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\HC
+                    -SR04.lst) OBJECT(.\Objects\HCSR04.obj)
+
+line level    source
+
+   1          #include <STC12C5A60S2.h>
+   2          #include <intrins.h>
+   3          #include "HCSR04.h"
+   4          
+   5          unsigned char time_h,time_l;         //定义两个时间变量，存储时间
+   6          char succeed_flag;                   //定义成功标志变量
+   7          
+   8          void Delay__us(unsigned int i)          //@晶振12.000MHz
+   9          {
+  10   1              for(i;i>0;i--)
+  11   1              {
+  12   2               _nop_();
+  13   2               _nop_();
+  14   2              }
+  15   1      }
+  16          
+  17          void Delay__ms(unsigned int n)          //@12.000MHz
+  18          { 
+  19   1              unsigned char i, j;
+  20   1              for(n;n>0;n--)
+  21   1              {
+  22   2      
+  23   2                      _nop_();
+  24   2                      _nop_();
+  25   2                      i = 12;
+  26   2                      j = 168;
+  27   2                      do
+  28   2                      {
+  29   3                              while (--j);
+  30   3                      } 
+  31   2                      while (--i);
+  32   2              }
+  33   1      }
+  34          
+  35          
+  36          
+  37          /*------------------超声波模块初始化函数---------------------------*/
+  38          void HC_Init()
+  39          {
+  40   1              Trig=0;                 //控制端置0
+  41   1              Trig=1;                 //控制端置1
+  42   1              Delay__us(20);            //延时20us，给Trig发送至少10us高电平信号
+  43   1              Trig=0;                 //控制端再次置0
+  44   1      }
+  45          
+  46          
+  47          /*---------------------------超声波接收函数-----------------------------------*/
+  48          void HC_Out()
+  49          {       
+  50   1              EA=1;                               //打开总中断开关
+  51   1              while(Echo==0) ;                    //等待捕捉Echo上升沿信号（发射超声波）
+  52   1              succeed_flag=0;                     
+  53   1              Time0_Init();                       //打开定时计数器0并初始化
+  54   1              EX1=1;                              //打开外部中断
+C51 COMPILER V9.56.0.0   HCSR04                                                            04/15/2018 18:08:24 PAGE 2   
+
+  55   1              Delay__ms(30);                        //延时30ms，等待捕捉Echo下降沿信号（反射回的超声波信号）
+  56   1              TR0=0;                              //关闭定时计数器0
+  57   1      }
+  58          
+  59          
+  60          /*---------------------------------计算测距函数------------------------------------------*/
+  61          float Distance()
+  62          {
+  63   1              
+  64   1              float distance;                              //定义距离变量                                  
+  65   1              if(succeed_flag==1)                          //判断是否成功接收到Echo下降沿信号
+  66   1              {
+  67   2                      distance=(time_h*256+time_l)*0.017;        //计算距离
+  68   2              }
+  69   1              else 
+  70   1              {
+  71   2                      distance=0.0;                              //测距失败记距离为0
+  72   2              }
+  73   1              return distance;                             //返回距离
+  74   1      }
+  75                  
+  76          
+  77          /*----------------------------------T0初始化函数---------------------------------------------------*/
+  78          void Time0_Init( )
+  79          {
+  80   1              ET0=1;                             //打开T0中断
+  81   1              TMOD |=0X01;                       //使用模式1，16位定时器，使用"|"符号可以在使用多个定时器时不受影响
+  82   1              TR0=1;                             //打开定时器
+  83   1              TH0=0X00;
+  84   1              TL0=0X00;                          //赋值0
+  85   1      }
+  86          
+  87          
+  88          
+  89          void INT1_subroutine() interrupt 2             
+  90          { 
+  91   1              TR0=0;                             //关闭定时计数器0 
+  92   1              time_h=TH0;
+  93   1              time_l=TL0;                        //记录Echo高电平持续时间（超声波信号发射接收时间）
+  94   1              EX1=0;                             //关闭外部中断
+  95   1              succeed_flag=1;                    //成功标记变量位1
+  96   1      }
+  97          
+  98          void Time0_subroutine() interrupt 1
+  99          {
+ 100   1              TR0=0;  //关闭定时计数器0
+ 101   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    173    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      3       4
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
